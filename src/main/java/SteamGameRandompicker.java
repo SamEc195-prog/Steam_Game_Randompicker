@@ -3,6 +3,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Collections;
 import java.util.List;
 
 public class SteamGameRandompicker {
@@ -10,9 +11,8 @@ public class SteamGameRandompicker {
     private static final String API_KEY = "9ED1938C227ADAA8BB64B95733B5930B";
     private static final String STEAM_ID = "76561198122751717";
 
-    public static void main(String[] args) {
-        System.out.println("Starte Steam Game Fetcher...");
-
+    public List<Game> fetchOwnedGames() {
+        System.out.println("Starte Abruf der Spieleliste...");
         try {
             // 1. Den API-Call vorbereiten
             HttpClient client = HttpClient.newHttpClient();
@@ -30,8 +30,6 @@ public class SteamGameRandompicker {
                     .uri(new URI(url))
                     .build();
 
-            System.out.println("Sende Anfrage an Steam API...");
-
             // 2. Anfrage senden und Antwort als Text (String) empfangen
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
@@ -45,30 +43,21 @@ public class SteamGameRandompicker {
 
                 if (steamResponse != null && steamResponse.response != null && steamResponse.response.games != null) {
                     System.out.println("Erfolgreich " + steamResponse.response.game_count + " Spiele gefunden!");
-                    System.out.println("-------------------------------------");
-
-                    // 4. Alle Spiele auf der Konsole ausgeben
-                    for (Game game : steamResponse.response.games) {
-                        // Wir geben Name, AppID und Spielzeit (in Minuten) aus
-                        System.out.printf("Spiel: %s (AppID: %d, Spielzeit: %d Min.)\n",
-                        game.name,
-                        game.appid,
-                        game.playtime_forever
-                        );
-                }
+                    return steamResponse.response.games;
             } else {
-                System.out.println("Antwort erhalten, aber keine Spieldaten gefunden (response.games ist null).");
-                System.out.println("JSON-Antwort: " + jsonBody); // Zur Fehlersuche
+                System.err.println("Antwort erhalten, aber keine Spieldaten gefunden.");
             }
         } else {
                 System.out.println("Fehler bei der API-Anfrage. Status Code: " + response.statusCode());
-                System.out.println("Antwort: " + response.body());
             }
     } catch (Exception e) {
             // Falls etwas schiefgeht (z.B. keine Internetverbindung)
             System.err.println("Ein Fehler ist aufgetreten:");
             e.printStackTrace();
         }
+
+        // Im Fehlerfall geben wir eine leere Liste zurück
+        return Collections.emptyList();
 }
 
 /*
@@ -95,5 +84,10 @@ class Game {
     int playtime_forever; // Spielzeit in Minuten
     // Es gäbe hier noch mehr Felder (z.B. img_icon_url),
     // aber wir brauchen sie erstmal nicht.
+
+    @Override
+    public String toString() {
+    return this.name;
+    }
 }
 }
