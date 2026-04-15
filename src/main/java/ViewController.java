@@ -177,7 +177,6 @@ protected List<SteamGameRandompicker.Game> call() throws Exception {
         resultLabel.setText(randomGame.name);
         
         // (Bonus) Scrolle zur Auswahl in der Pool-Liste
-        gamePoolListView.getSelectionModel().select(randomGame);
         gamePoolListView.scrollTo(randomGame);
     }
 }
