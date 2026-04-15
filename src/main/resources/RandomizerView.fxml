@@ -10,10 +10,16 @@
 
 <VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="ViewController"
-      alignment="TOP_LEFT" spacing="10" prefWidth="650" prefHeight="500"
+      alignment="TOP_LEFT" spacing="10" prefWidth="750" prefHeight="600"
       style="-fx-padding: 10;">
 
     <children>
+        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 0 0 10 0; -fx-border-color: transparent transparent #ccc transparent; -fx-border-width: 0 0 1 0;">
+            <Label text="Aktuelles Profil: Default" style="-fx-font-style: italic; -fx-text-fill: gray;"/>
+            <Label HBox.hgrow="ALWAYS" maxWidth="Infinity" />
+            <Button text="💾 Profil speichern" onAction="#onSaveProfileClick" style="-fx-font-weight: bold;"/>
+        </HBox>
+
         <HBox spacing="10" VBox.vgrow="ALWAYS">
             
             <VBox HBox.hgrow="ALWAYS">

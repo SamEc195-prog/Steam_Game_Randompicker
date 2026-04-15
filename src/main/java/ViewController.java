@@ -1,3 +1,4 @@
+import com.google.gson.Gson; // NEU
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -13,6 +14,9 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 
+import java.io.File; // NEU
+import java.io.FileReader; // NEU
+import java.io.FileWriter; // NEU
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,10 +28,7 @@ public class ViewController {
     @FXML private ListView<SteamGameRandompicker.Game> gamePoolListView;
     @FXML private ListView<SteamGameRandompicker.Game> gameLibraryListView;
     @FXML private TextField searchField;
-    
-    // NEU: Textfeld für eigene Spiele
     @FXML private TextField customGameField; 
-
     @FXML private Button excludeButton; 
     @FXML private Button includeButton; 
     @FXML private Button randomButton;
@@ -40,9 +41,10 @@ public class ViewController {
 
     private Map<Integer, Image> imageCache = new HashMap<>();
     private Random random = new Random();
-    
-    // NEU: Ein Zähler für unsere eigenen Spiele, damit jedes eine einzigartige (negative) ID bekommt
     private int customAppIdCounter = -1;
+
+    // NEU: Dateiname für unser aktuelles Speicherprofil
+    private static final String PROFILE_FILE = "profile.json";
 
     @FXML
     public void initialize() {
@@ -66,32 +68,29 @@ public class ViewController {
             });
         });
 
+        // Spiele laden (danach wird automatisch das Profil geladen)
         loadGamesAsync();
     }
 
     private void setCustomCellFactory(ListView<SteamGameRandompicker.Game> listView) {
+        // ... (Dieser Code bleibt exakt gleich wie vorher) ...
         listView.setCellFactory(param -> new ListCell<>() {
             private HBox hbox = new HBox(10);
             private ImageView imageView = new ImageView();
             private Label label = new Label();
-
             {
                 imageView.setFitWidth(120);
                 imageView.setPreserveRatio(true);
                 label.setStyle("-fx-alignment: center-left; -fx-padding: 5 0 0 0;"); 
                 hbox.getChildren().addAll(imageView, label);
             }
-
             @Override
             protected void updateItem(SteamGameRandompicker.Game game, boolean empty) {
                 super.updateItem(game, empty);
-
                 if (empty || game == null) {
                     setGraphic(null);
                 } else {
                     label.setText(game.name);
-
-                    // NEU: Nur Steam-Bilder laden, wenn die appid > 0 ist
                     if (game.appid > 0) {
                         if (!imageCache.containsKey(game.appid)) {
                             String imageUrl = "https://cdn.akamai.steamstatic.com/steam/apps/" + game.appid + "/capsule_184x69.jpg";
@@ -100,10 +99,8 @@ public class ViewController {
                         }
                         imageView.setImage(imageCache.get(game.appid));
                     } else {
-                        // Bei eigenen Spielen (appid < 0) sicherstellen, dass kein altes Bild angezeigt wird
                         imageView.setImage(null);
                     }
-                    
                     setGraphic(hbox);
                 }
             }
@@ -123,10 +120,13 @@ public class ViewController {
             List<SteamGameRandompicker.Game> games = loadGamesTask.getValue();
             libraryGames.setAll(games); 
             
+            // ### NEU: Wenn Steam fertig geladen hat, versuchen wir unser Profil zu laden ###
+            loadProfile();
+
             randomButton.setDisable(false);
             excludeButton.setDisable(false);
             includeButton.setDisable(false);
-            resultLabel.setText("Bibliothek geladen. Wähle Spiele für den Pool!");
+            resultLabel.setText("Bibliothek & Profil geladen!");
         });
 
         loadGamesTask.setOnFailed(event -> {
@@ -141,26 +141,106 @@ public class ViewController {
         new Thread(loadGamesTask).start();
     }
 
-    // NEU: Methode zum Hinzufügen von eigenen Spielen
+
+    // ==========================================
+    // NEUE METHODEN FÜR SPEICHERN UND LADEN
+    // ==========================================
+
+    @FXML
+    private void onSaveProfileClick() {
+        UserProfile profile = new UserProfile();
+
+        // 1. Alle Custom Games sichern (sowohl aus Bibliothek als auch aus Pool)
+        for (SteamGameRandompicker.Game g : libraryGames) {
+            if (g.appid < 0) profile.customGames.add(g);
+        }
+        for (SteamGameRandompicker.Game g : poolGames) {
+            if (g.appid < 0) profile.customGames.add(g);
+            
+            // 2. Alle IDs der Pool-Spiele sichern (Steam + Custom)
+            profile.poolAppIds.add(g.appid);
+        }
+
+        // 3. In Datei schreiben
+        try (FileWriter writer = new FileWriter(PROFILE_FILE)) {
+            Gson gson = new Gson();
+            gson.toJson(profile, writer);
+            resultLabel.setText("✅ Profil erfolgreich gespeichert!");
+        } catch (Exception e) {
+            System.err.println("Fehler beim Speichern:");
+            e.printStackTrace();
+            resultLabel.setText("❌ Fehler beim Speichern!");
+        }
+    }
+
+    private void loadProfile() {
+        File file = new File(PROFILE_FILE);
+        if (!file.exists()) {
+            return; // Kein Profil vorhanden, wir starten leer. Alles gut!
+        }
+
+        try (FileReader reader = new FileReader(file)) {
+            Gson gson = new Gson();
+            UserProfile profile = gson.fromJson(reader, UserProfile.class);
+
+            if (profile != null) {
+                // 1. Custom Games der Bibliothek hinzufügen
+                if (profile.customGames != null) {
+                    libraryGames.addAll(0, profile.customGames); // Oben anfügen
+                    
+                    // Den ID-Counter aktualisieren, damit neue Custom Games keine ID-Kollisionen verurshen
+                    for (SteamGameRandompicker.Game cg : profile.customGames) {
+                        if (cg.appid <= customAppIdCounter) {
+                            customAppIdCounter = cg.appid - 1;
+                        }
+                    }
+                }
+
+                // 2. Spiele in den Pool verschieben
+                if (profile.poolAppIds != null) {
+                    List<SteamGameRandompicker.Game> gamesToMove = new ArrayList<>();
+                    
+                    // Wir suchen die passenden Spiele in der Bibliothek
+                    for (SteamGameRandompicker.Game g : libraryGames) {
+                        if (profile.poolAppIds.contains(g.appid)) {
+                            gamesToMove.add(g);
+                        }
+                    }
+                    
+                    // Verschieben
+                    poolGames.addAll(gamesToMove);
+                    libraryGames.removeAll(gamesToMove);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Fehler beim Laden des Profils:");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * NEU: Diese Klasse definiert, wie unsere JSON-Datei aufgebaut ist.
+     */
+    public static class UserProfile {
+        public List<SteamGameRandompicker.Game> customGames = new ArrayList<>();
+        public List<Integer> poolAppIds = new ArrayList<>();
+    }
+
+    // ==========================================
+    // AB HIER WIEDER DIE ALTEN BUTTON-METHODEN
+    // ==========================================
+
     @FXML
     private void onAddCustomGameClick() {
         String gameName = customGameField.getText().trim();
-        
-        // Nichts tun, wenn das Feld leer ist
-        if (gameName.isEmpty()) {
-            return;
-        }
+        if (gameName.isEmpty()) return;
 
-        // Ein neues "Game"-Objekt erstellen
         SteamGameRandompicker.Game customGame = new SteamGameRandompicker.Game();
-        customGame.appid = customAppIdCounter--; // Weist -1 zu, dann -2, dann -3...
+        customGame.appid = customAppIdCounter--; 
         customGame.name = gameName;
         customGame.playtime_forever = 0;
 
-        // Fügen wir es GANZ OBEN der Bibliothek hinzu, damit man es direkt sieht
         libraryGames.add(0, customGame);
-
-        // Textfeld nach dem Hinzufügen leeren
         customGameField.clear();
     }
 
@@ -193,7 +273,6 @@ public class ViewController {
 
         resultLabel.setText(randomGame.name);
         
-        // NEU: Auch hier beim Gewinner-Bild prüfen, ob es ein offizielles Spiel ist
         if (randomGame.appid > 0) {
             resultImageView.setImage(imageCache.get(randomGame.appid));
         } else {
