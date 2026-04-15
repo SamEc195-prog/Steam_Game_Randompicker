@@ -24,8 +24,11 @@
                 <Button fx:id="includeButton" text="&lt;" onAction="#onIncludeClick" prefWidth="40"/>
             </VBox>
 
-            <VBox HBox.hgrow="ALWAYS">
+            <VBox HBox.hgrow="ALWAYS" spacing="5">
                 <Label text="Meine Bibliothek (Alle Spiele):" style="-fx-font-weight: bold;"/>
+                
+                <TextField fx:id="searchField" promptText="Spiel suchen..."/>
+                
                 <ListView fx:id="gameLibraryListView" VBox.vgrow="ALWAYS"/>
             </VBox>
             
