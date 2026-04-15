@@ -8,15 +8,15 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextField;
-import javafx.scene.control.ListCell; // NEU
-import javafx.scene.image.Image; // NEU
-import javafx.scene.image.ImageView; // NEU
-import javafx.scene.layout.HBox; // NEU
+import javafx.scene.control.ListCell;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.HBox;
 
 import java.util.ArrayList;
-import java.util.HashMap; // NEU
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map; // NEU
+import java.util.Map;
 import java.util.Random;
 
 public class ViewController {
@@ -24,21 +24,25 @@ public class ViewController {
     @FXML private ListView<SteamGameRandompicker.Game> gamePoolListView;
     @FXML private ListView<SteamGameRandompicker.Game> gameLibraryListView;
     @FXML private TextField searchField;
+    
+    // NEU: Textfeld für eigene Spiele
+    @FXML private TextField customGameField; 
+
     @FXML private Button excludeButton; 
     @FXML private Button includeButton; 
     @FXML private Button randomButton;
     @FXML private Label resultLabel;
-    
-    @FXML private ImageView resultImageView; // NEU: Für das Gewinner-Bild
+    @FXML private ImageView resultImageView;
 
     private ObservableList<SteamGameRandompicker.Game> poolGames;
     private ObservableList<SteamGameRandompicker.Game> libraryGames;
     private FilteredList<SteamGameRandompicker.Game> filteredLibraryGames; 
 
-    // NEU: Unser Bilder-Cache. Verhindert, dass Bilder beim Scrollen ständig neu geladen werden.
     private Map<Integer, Image> imageCache = new HashMap<>();
-
     private Random random = new Random();
+    
+    // NEU: Ein Zähler für unsere eigenen Spiele, damit jedes eine einzigartige (negative) ID bekommt
+    private int customAppIdCounter = -1;
 
     @FXML
     public void initialize() {
@@ -52,7 +56,6 @@ public class ViewController {
         gamePoolListView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         gameLibraryListView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-        // NEU: Wir wenden unsere eigene Design-Schablone auf BEIDE Listen an
         setCustomCellFactory(gamePoolListView);
         setCustomCellFactory(gameLibraryListView);
 
@@ -66,21 +69,15 @@ public class ViewController {
         loadGamesAsync();
     }
 
-    /**
-     * NEU: Diese Methode verändert das Aussehen der Listenzeilen.
-     * Statt nur Text, zeigen wir jetzt ein Bild und daneben den Text.
-     */
     private void setCustomCellFactory(ListView<SteamGameRandompicker.Game> listView) {
         listView.setCellFactory(param -> new ListCell<>() {
-            private HBox hbox = new HBox(10); // 10 Pixel Abstand
+            private HBox hbox = new HBox(10);
             private ImageView imageView = new ImageView();
             private Label label = new Label();
 
             {
-                // Einmaliges Setup für jede Listenzeile
-                imageView.setFitWidth(120); // Die Breite des Banners
+                imageView.setFitWidth(120);
                 imageView.setPreserveRatio(true);
-                // Text vertikal zentrieren
                 label.setStyle("-fx-alignment: center-left; -fx-padding: 5 0 0 0;"); 
                 hbox.getChildren().addAll(imageView, label);
             }
@@ -94,20 +91,19 @@ public class ViewController {
                 } else {
                     label.setText(game.name);
 
-                    // Prüfen, ob wir das Bild schon heruntergeladen haben
-                    if (!imageCache.containsKey(game.appid)) {
-                        // Bild URL von den offiziellen Steam-Servern zusammenbauen
-                        String imageUrl = "https://cdn.akamai.steamstatic.com/steam/apps/" + game.appid + "/capsule_184x69.jpg";
-                        
-                        // "true" am Ende bedeutet: Asynchron im Hintergrund laden (GUI friert nicht ein!)
-                        Image img = new Image(imageUrl, true);
-                        imageCache.put(game.appid, img);
+                    // NEU: Nur Steam-Bilder laden, wenn die appid > 0 ist
+                    if (game.appid > 0) {
+                        if (!imageCache.containsKey(game.appid)) {
+                            String imageUrl = "https://cdn.akamai.steamstatic.com/steam/apps/" + game.appid + "/capsule_184x69.jpg";
+                            Image img = new Image(imageUrl, true);
+                            imageCache.put(game.appid, img);
+                        }
+                        imageView.setImage(imageCache.get(game.appid));
+                    } else {
+                        // Bei eigenen Spielen (appid < 0) sicherstellen, dass kein altes Bild angezeigt wird
+                        imageView.setImage(null);
                     }
                     
-                    // Bild aus dem Cache setzen
-                    imageView.setImage(imageCache.get(game.appid));
-                    
-                    // Der Liste sagen, dass sie unsere HBox als Zeile anzeigen soll
                     setGraphic(hbox);
                 }
             }
@@ -145,6 +141,29 @@ public class ViewController {
         new Thread(loadGamesTask).start();
     }
 
+    // NEU: Methode zum Hinzufügen von eigenen Spielen
+    @FXML
+    private void onAddCustomGameClick() {
+        String gameName = customGameField.getText().trim();
+        
+        // Nichts tun, wenn das Feld leer ist
+        if (gameName.isEmpty()) {
+            return;
+        }
+
+        // Ein neues "Game"-Objekt erstellen
+        SteamGameRandompicker.Game customGame = new SteamGameRandompicker.Game();
+        customGame.appid = customAppIdCounter--; // Weist -1 zu, dann -2, dann -3...
+        customGame.name = gameName;
+        customGame.playtime_forever = 0;
+
+        // Fügen wir es GANZ OBEN der Bibliothek hinzu, damit man es direkt sieht
+        libraryGames.add(0, customGame);
+
+        // Textfeld nach dem Hinzufügen leeren
+        customGameField.clear();
+    }
+
     @FXML
     private void onExcludeClick() {
         List<SteamGameRandompicker.Game> selected = new ArrayList<>(gamePoolListView.getSelectionModel().getSelectedItems());
@@ -165,18 +184,21 @@ public class ViewController {
     private void onRandomButtonClick() {
         if (poolGames.isEmpty()) {
             resultLabel.setText("Keine Spiele im Pool!");
-            resultImageView.setImage(null); // Bild leeren bei Fehler
+            resultImageView.setImage(null);
             return;
         }
         
         int randomIndex = random.nextInt(poolGames.size());
         SteamGameRandompicker.Game randomGame = poolGames.get(randomIndex);
 
-        // Name unten anzeigen
         resultLabel.setText(randomGame.name);
         
-        // NEU: Das Gewinner-Bild unten anzeigen (aus dem Cache holen)
-        resultImageView.setImage(imageCache.get(randomGame.appid));
+        // NEU: Auch hier beim Gewinner-Bild prüfen, ob es ein offizielles Spiel ist
+        if (randomGame.appid > 0) {
+            resultImageView.setImage(imageCache.get(randomGame.appid));
+        } else {
+            resultImageView.setImage(null);
+        }
         
         gamePoolListView.scrollTo(randomGame);
     }

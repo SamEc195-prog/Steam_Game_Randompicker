@@ -67,18 +67,18 @@ public class SteamGameRandompicker {
  */
 
 // Die oberste Ebene der JSON-Antwort
-class SteamResponse {
+public static class SteamResponse {
     GameList response;
 }
 
 // Die "response" enthält die Liste der Spiele
-class GameList {
+public static class GameList {
     int game_count;
     List<Game> games;
 }
 
 // Das eigentliche Spiel-Objekt
-class Game {
+public static class Game {
     int appid;
     String name;
     int playtime_forever; // Spielzeit in Minuten

@@ -30,6 +30,11 @@
                 <Label text="Meine Bibliothek (Alle Spiele):" style="-fx-font-weight: bold;"/>
                 <TextField fx:id="searchField" promptText="Spiel suchen..."/>
                 <ListView fx:id="gameLibraryListView" VBox.vgrow="ALWAYS"/>
+                
+                <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding-top: 5;">
+                    <TextField fx:id="customGameField" promptText="Eigenes Spiel eingeben..." HBox.hgrow="ALWAYS"/>
+                    <Button text="Hinzufügen" onAction="#onAddCustomGameClick"/>
+                </HBox>
             </VBox>
             
         </HBox>
