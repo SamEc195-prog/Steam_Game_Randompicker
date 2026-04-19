@@ -17,15 +17,21 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
+import javafx.stage.FileChooser;
+import javafx.geometry.Rectangle2D;
 
-import java.io.File; // NEU
-import java.io.FileReader; // NEU
-import java.io.FileWriter; // NEU
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class ViewController {
 
@@ -52,7 +58,6 @@ public class ViewController {
     @FXML
     private TextField newProfileField;
 
-
     private ObservableList<SteamGameRandompicker.Game> poolGames;
     private ObservableList<SteamGameRandompicker.Game> libraryGames;
     private FilteredList<SteamGameRandompicker.Game> filteredLibraryGames;
@@ -60,9 +65,6 @@ public class ViewController {
     private Map<Integer, Image> imageCache = new HashMap<>();
     private Random random = new Random();
     private int customAppIdCounter = -1;
-
-    // ALT
-    //private static final String PROFILE_FILE = "profile.json";
 
     // NEU: Wir holen uns den Benutzerordner und erstellen einen eigenen Unterordner
     private static final String USER_HOME = System.getProperty("user.home");
@@ -105,10 +107,19 @@ public class ViewController {
                 switchProfile(newVal);
             }
         });
+
+        // Auswahl löschen, wenn in der anderen Liste geklickt wird
+        gameLibraryListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null)
+                gamePoolListView.getSelectionModel().clearSelection();
+        });
+        gamePoolListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null)
+                gameLibraryListView.getSelectionModel().clearSelection();
+        });
     }
 
     private void setCustomCellFactory(ListView<SteamGameRandompicker.Game> listView) {
-        // ... (Dieser Code bleibt exakt gleich wie vorher) ...
         listView.setCellFactory(param -> new ListCell<>() {
             private HBox hbox = new HBox(10);
             private ImageView imageView = new ImageView();
@@ -122,20 +133,50 @@ public class ViewController {
 
             @Override
             protected void updateItem(SteamGameRandompicker.Game game, boolean empty) {
+                // GANZ WICHTIG: Das verhindert die Scroll-Bugs!
                 super.updateItem(game, empty);
+
                 if (empty || game == null) {
                     setGraphic(null);
                 } else {
                     label.setText(game.name);
-                    if (game.appid > 0) {
+
+                    // 1. Prüfen, ob ein lokales Cover existiert
+                    File localJpg = new File(SAVE_DIR + "/covers/" + game.appid + ".jpg");
+                    File localPng = new File(SAVE_DIR + "/covers/" + game.appid + ".png");
+                    File localJpeg = new File(SAVE_DIR + "/covers/" + game.appid + ".jpeg");
+
+                    File activeFile = localJpg.exists() ? localJpg
+                            : (localPng.exists() ? localPng : (localJpeg.exists() ? localJpeg : null));
+
+                    if (activeFile != null) {
+                        // Eigenes (lokales) Bild laden
                         if (!imageCache.containsKey(game.appid)) {
-                            String imageUrl = "https://cdn.akamai.steamstatic.com/steam/apps/" + game.appid
-                                    + "/capsule_184x69.jpg";
-                            Image img = new Image(imageUrl, true);
+                            // false = nicht im Hintergrund laden, da es direkt von der Festplatte kommt
+                            Image img = new Image(activeFile.toURI().toString(), false);
                             imageCache.put(game.appid, img);
                         }
+                        Image img = imageCache.get(game.appid);
+                        imageView.setImage(img);
+                        // Schön zuschneiden
+                        applyProportionalSize(imageView, img, 120, 45);
+
+                    } else if (game.appid > 0) {
+                        // 2. Steam-Spiel -> Hier ist dein echter Steam-Lade-Code wieder!
+                        if (!imageCache.containsKey(game.appid)) {
+                            String imageUrl = "http://media.steampowered.com/steam/apps/" + game.appid
+                                    + "/capsule_184x69.jpg";
+                            Image img = new Image(imageUrl, true); // true = asynchron im Hintergrund laden
+                            imageCache.put(game.appid, img);
+                        }
+                        // Bei Steam-Bildern müssen wir nichts zuschneiden, die sind schon perfekt
+                        imageView.setViewport(null);
+                        imageView.setFitWidth(120);
+                        imageView.setFitHeight(45);
                         imageView.setImage(imageCache.get(game.appid));
                     } else {
+                        // Custom Game ohne zugewiesenes Cover -> leer lassen
+                        imageView.setViewport(null);
                         imageView.setImage(null);
                     }
                     setGraphic(hbox);
@@ -187,7 +228,7 @@ public class ViewController {
 
     @FXML
     private void onSaveProfileClick() {
-        
+
         // NEU: Stelle sicher, dass der Ordner existiert, bevor wir speichern
         File dir = new File(SAVE_DIR);
         if (!dir.exists()) {
@@ -292,11 +333,13 @@ public class ViewController {
         List<String> profiles = new ArrayList<>();
         File dir = new File(SAVE_DIR);
         File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
-        
+
         if (files != null) {
-            for (File f : files) profiles.add(f.getName().replace(".json", ""));
+            for (File f : files)
+                profiles.add(f.getName().replace(".json", ""));
         }
-        if (profiles.isEmpty()) profiles.add("Default");
+        if (profiles.isEmpty())
+            profiles.add("Default");
 
         profileComboBox.getItems().setAll(profiles);
         profileComboBox.setValue(currentProfile);
@@ -318,7 +361,8 @@ public class ViewController {
     @FXML
     private void onAddProfileClick() {
         String name = newProfileField.getText().trim();
-        if (name.isEmpty() || profileComboBox.getItems().contains(name)) return;
+        if (name.isEmpty() || profileComboBox.getItems().contains(name))
+            return;
         profileComboBox.getItems().add(name);
         profileComboBox.setValue(name);
         newProfileField.clear();
@@ -345,7 +389,7 @@ public class ViewController {
             }
 
             resultLabel.setText("Profil '" + currentProfile + "' wurde gelöscht.");
-            
+
             // 3. Zurück zum Default-Profil springen
             currentProfile = "Default";
             loadAvailableProfiles(); // Liste im Dropdown aktualisieren
@@ -405,12 +449,113 @@ public class ViewController {
 
         resultLabel.setText(randomGame.name);
 
-        if (randomGame.appid > 0) {
-            resultImageView.setImage(imageCache.get(randomGame.appid));
+        // Prüfen, ob für das gezogene Spiel ein lokales Cover existiert
+        File localJpg = new File(SAVE_DIR + "/covers/" + randomGame.appid + ".jpg");
+        File localPng = new File(SAVE_DIR + "/covers/" + randomGame.appid + ".png");
+        File localJpeg = new File(SAVE_DIR + "/covers/" + randomGame.appid + ".jpeg");
+        File activeFile = localJpg.exists() ? localJpg
+                : (localPng.exists() ? localPng : (localJpeg.exists() ? localJpeg : null));
+
+        if (activeFile != null) {
+            // Lokales Bild laden und zuschneiden
+            Image img = new Image(activeFile.toURI().toString());
+            resultImageView.setImage(img);
+            applyProportionalSize(resultImageView, img, 184, 69);
+        } else if (randomGame.appid > 0) {
+            // Normales Steam-Bild anzeigen
+            Image img = imageCache.get(randomGame.appid);
+            resultImageView.setImage(img);
+            resultImageView.setViewport(null); // Steam-Originale nicht zuschneiden
+            resultImageView.setFitWidth(184);
+            resultImageView.setFitHeight(69);
         } else {
             resultImageView.setImage(null);
         }
 
         gamePoolListView.scrollTo(randomGame);
     }
+
+    // ==========================================
+    // Managemenent der eigenen Spiele-Cover
+    // ==========================================
+
+    // Hilfmethode, um ein Bild proportional zuzuschneiden und anzuzeigen
+    private void applyProportionalSize(ImageView iv, Image img, double targetW, double targetH) {
+        double imgW = img.getWidth();
+        double imgH = img.getHeight();
+
+        double targetAspect = targetW / targetH;
+        double imgAspect = imgW / imgH;
+
+        double subW, subH, subX, subY;
+
+        if (imgAspect > targetAspect) {
+            // Bild ist breiter als das Zielformat -> Links und rechts abschneiden
+            subH = imgH;
+            subW = imgH * targetAspect;
+            subX = (imgW - subW) / 2;
+            subY = 0;
+        } else {
+            // Bild ist schmaler/höher als das Zielformat -> Oben und unten abschneiden
+            subW = imgW;
+            subH = imgW / targetAspect;
+            subX = 0;
+            subY = (imgH - subH) / 2;
+        }
+        iv.setViewport(new Rectangle2D(subX, subY, subW, subH));
+        iv.setFitWidth(targetW);
+        iv.setFitHeight(targetH);
+    }
+
+    // Methode zum Auswählen und Speichern eines Covers für ein Custom Game
+    @FXML
+    private void onEditCoverClick() {
+        // Prüfen, ob ein Spiel in einer der Listen ausgewählt ist
+        SteamGameRandompicker.Game selected = gameLibraryListView.getSelectionModel().getSelectedItem();
+        if (selected == null)
+            selected = gamePoolListView.getSelectionModel().getSelectedItem();
+
+        if (selected == null) {
+            resultLabel.setText("Bitte zuerst ein Spiel auswählen!");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Bild für " + selected.name + " auswählen");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Bilder", "*.png", "*.jpg", "*.jpeg"));
+
+        File selectedFile = fileChooser.showOpenDialog(null);
+        if (selectedFile != null) {
+            try {
+                // Ordner erstellen falls nicht vorhanden
+                Path coversPath = Paths.get(SAVE_DIR, "covers");
+                if (!Files.exists(coversPath))
+                    Files.createDirectories(coversPath);
+
+                // Dateiendung extrahieren
+                String fileName = selectedFile.getName();
+                String extension = fileName.substring(fileName.lastIndexOf("."));
+
+                // Ziel-Pfad: appid.endung (z.B. -1.jpg)
+                Path targetPath = coversPath.resolve(selected.appid + extension);
+
+                // Datei kopieren (bestehende überschreiben)
+                Files.copy(selectedFile.toPath(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+                // Cache leeren für dieses Spiel, damit es neu geladen wird
+                imageCache.remove(selected.appid);
+
+                // Listen aktualisieren
+                gameLibraryListView.refresh();
+                gamePoolListView.refresh();
+
+                resultLabel.setText("✅ Cover für " + selected.name + " aktualisiert!");
+            } catch (Exception e) {
+                e.printStackTrace();
+                resultLabel.setText("❌ Fehler beim Kopieren des Bildes.");
+            }
+        }
+    }
+
 }

@@ -46,6 +46,7 @@
                 <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding-top: 5;">
                     <TextField fx:id="customGameField" promptText="Eigenes Spiel eingeben..." HBox.hgrow="ALWAYS"/>
                     <Button text="Hinzufügen" onAction="#onAddCustomGameClick"/>
+                    <Button text="🖼️ Cover ändern" onAction="#onEditCoverClick"/>
                 </HBox>
             </VBox>
             
