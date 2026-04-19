@@ -7,6 +7,7 @@
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.ComboBox?>
 
 <VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="ViewController"
@@ -15,9 +16,14 @@
 
     <children>
         <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 0 0 10 0; -fx-border-color: transparent transparent #ccc transparent; -fx-border-width: 0 0 1 0;">
-            <Label text="Aktuelles Profil: Default" style="-fx-font-style: italic; -fx-text-fill: gray;"/>
+            <Label text="Profil:" style="-fx-font-weight: bold;"/>
+            <ComboBox fx:id="profileComboBox" prefWidth="150"/>
+            <TextField fx:id="newProfileField" promptText="Neuer Name..."/>
+            <Button text="➕ Neu" onAction="#onAddProfileClick"/>
+            <Button text="🗑️ Löschen" onAction="#onDeleteProfileClick"/>
+            
             <Label HBox.hgrow="ALWAYS" maxWidth="Infinity" />
-            <Button text="💾 Profil speichern" onAction="#onSaveProfileClick" style="-fx-font-weight: bold;"/>
+            <Button text="💾 Speichern" onAction="#onSaveProfileClick" style="-fx-font-weight: bold;"/>
         </HBox>
 
         <HBox spacing="10" VBox.vgrow="ALWAYS">

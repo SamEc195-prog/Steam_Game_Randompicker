@@ -13,6 +13,10 @@ import javafx.scene.control.ListCell;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.ButtonType;
 
 import java.io.File; // NEU
 import java.io.FileReader; // NEU
@@ -43,6 +47,11 @@ public class ViewController {
     private Label resultLabel;
     @FXML
     private ImageView resultImageView;
+    @FXML
+    private ComboBox<String> profileComboBox;
+    @FXML
+    private TextField newProfileField;
+
 
     private ObservableList<SteamGameRandompicker.Game> poolGames;
     private ObservableList<SteamGameRandompicker.Game> libraryGames;
@@ -58,7 +67,11 @@ public class ViewController {
     // NEU: Wir holen uns den Benutzerordner und erstellen einen eigenen Unterordner
     private static final String USER_HOME = System.getProperty("user.home");
     private static final String SAVE_DIR = USER_HOME + File.separator + ".steamrandomizer";
-    private static final String PROFILE_FILE = SAVE_DIR + File.separator + "profile.json";
+
+    // Die alte Konstante PROFILE_FILE kommt weg.
+    // Dafür merken wir uns den aktuellen Profilnamen.
+    private String currentProfile = "Default";
+    private boolean isSwitchingProfile = false; // NEU: Flag, um Profilwechsel zu erkennen
 
     @FXML
     public void initialize() {
@@ -85,6 +98,13 @@ public class ViewController {
 
         // Spiele laden (danach wird automatisch das Profil geladen)
         loadGamesAsync();
+
+        // Listener für die ComboBox (Reagiert, wenn du ein Profil im Dropdown wählst)
+        profileComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (!isSwitchingProfile && newVal != null) {
+                switchProfile(newVal);
+            }
+        });
     }
 
     private void setCustomCellFactory(ListView<SteamGameRandompicker.Game> listView) {
@@ -139,7 +159,9 @@ public class ViewController {
 
             // ### NEU: Wenn Steam fertig geladen hat, versuchen wir unser Profil zu laden
             // ###
-            loadProfile();
+
+            loadAvailableProfiles(); // Zuerst die verfügbaren Profile in die ComboBox laden
+            loadProfile(); // Dann das aktuelle Profil laden (Default oder das zuletzt gewählte)
 
             randomButton.setDisable(false);
             excludeButton.setDisable(false);
@@ -188,10 +210,12 @@ public class ViewController {
         }
 
         // 3. In Datei schreiben
-        try (FileWriter writer = new FileWriter(PROFILE_FILE)) {
+        // ALT: try (FileWriter writer = new FileWriter(PROFILE_FILE)) {
+        // NEU:
+        try (FileWriter writer = new FileWriter(getProfileFile(currentProfile))) {
             Gson gson = new Gson();
             gson.toJson(profile, writer);
-            resultLabel.setText("✅ Profil erfolgreich gespeichert!");
+            resultLabel.setText("✅ Profil '" + currentProfile + "' gespeichert!");
         } catch (Exception e) {
             System.err.println("Fehler beim Speichern:");
             e.printStackTrace();
@@ -200,7 +224,9 @@ public class ViewController {
     }
 
     private void loadProfile() {
-        File file = new File(PROFILE_FILE);
+        // ALT: File file = new File(PROFILE_FILE);
+        // NEU:
+        File file = getProfileFile(currentProfile);
         if (!file.exists()) {
             return; // Kein Profil vorhanden, wir starten leer. Alles gut!
         }
@@ -251,6 +277,80 @@ public class ViewController {
     public static class UserProfile {
         public List<SteamGameRandompicker.Game> customGames = new ArrayList<>();
         public List<Integer> poolAppIds = new ArrayList<>();
+    }
+
+    // ==========================================
+    // NEUE PROFIL-VERWALTUNG
+    // ==========================================
+
+    private File getProfileFile(String profileName) {
+        return new File(SAVE_DIR + File.separator + profileName + ".json");
+    }
+
+    private void loadAvailableProfiles() {
+        isSwitchingProfile = true;
+        List<String> profiles = new ArrayList<>();
+        File dir = new File(SAVE_DIR);
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
+        
+        if (files != null) {
+            for (File f : files) profiles.add(f.getName().replace(".json", ""));
+        }
+        if (profiles.isEmpty()) profiles.add("Default");
+
+        profileComboBox.getItems().setAll(profiles);
+        profileComboBox.setValue(currentProfile);
+        isSwitchingProfile = false;
+    }
+
+    private void switchProfile(String newProfileName) {
+        // Erstmal aufräumen
+        libraryGames.addAll(poolGames);
+        poolGames.clear();
+        libraryGames.removeIf(g -> g.appid < 0);
+        customAppIdCounter = -1;
+
+        currentProfile = newProfileName;
+        loadProfile();
+        resultLabel.setText("Wechsel zu Profil: " + currentProfile);
+    }
+
+    @FXML
+    private void onAddProfileClick() {
+        String name = newProfileField.getText().trim();
+        if (name.isEmpty() || profileComboBox.getItems().contains(name)) return;
+        profileComboBox.getItems().add(name);
+        profileComboBox.setValue(name);
+        newProfileField.clear();
+    }
+
+    @FXML
+    private void onDeleteProfileClick() {
+        if (currentProfile.equals("Default")) {
+            resultLabel.setText("Das Default-Profil kann nicht gelöscht werden!");
+            return;
+        }
+
+        // 1. Warnhinweis erstellen
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle("Profil löschen");
+        alert.setHeaderText("Bist du sicher?");
+        alert.setContentText("Das Profil '" + currentProfile + "' wird unwiderruflich gelöscht.");
+
+        // 2. Auf Antwort warten
+        if (alert.showAndWait().get() == ButtonType.OK) {
+            File file = getProfileFile(currentProfile);
+            if (file.exists()) {
+                file.delete();
+            }
+
+            resultLabel.setText("Profil '" + currentProfile + "' wurde gelöscht.");
+            
+            // 3. Zurück zum Default-Profil springen
+            currentProfile = "Default";
+            loadAvailableProfiles(); // Liste im Dropdown aktualisieren
+            switchProfile("Default"); // Daten neu laden
+        }
     }
 
     // ==========================================
