@@ -1,4 +1,3 @@
-import com.google.gson.Gson; // NEU
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -18,7 +17,6 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
 import javafx.stage.FileChooser;
-import javafx.geometry.Rectangle2D;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,12 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 public class ViewController {
 
@@ -65,10 +60,6 @@ public class ViewController {
     private Map<Integer, Image> imageCache = new HashMap<>();
     private Random random = new Random();
     private int customAppIdCounter = -1;
-
-    // NEU: Wir holen uns den Benutzerordner und erstellen einen eigenen Unterordner
-    private static final String USER_HOME = System.getProperty("user.home");
-    private static final String SAVE_DIR = USER_HOME + File.separator + ".steamrandomizer";
 
     // Die alte Konstante PROFILE_FILE kommt weg.
     // Dafür merken wir uns den aktuellen Profilnamen.
@@ -141,25 +132,17 @@ public class ViewController {
                 } else {
                     label.setText(game.name);
 
-                    // 1. Prüfen, ob ein lokales Cover existiert
-                    File localJpg = new File(SAVE_DIR + "/covers/" + game.appid + ".jpg");
-                    File localPng = new File(SAVE_DIR + "/covers/" + game.appid + ".png");
-                    File localJpeg = new File(SAVE_DIR + "/covers/" + game.appid + ".jpeg");
-
-                    File activeFile = localJpg.exists() ? localJpg
-                            : (localPng.exists() ? localPng : (localJpeg.exists() ? localJpeg : null));
+                    // NEU
+                    File activeFile = CoverManager.getCoverFile(game.appid);
 
                     if (activeFile != null) {
-                        // Eigenes (lokales) Bild laden
                         if (!imageCache.containsKey(game.appid)) {
-                            // false = nicht im Hintergrund laden, da es direkt von der Festplatte kommt
                             Image img = new Image(activeFile.toURI().toString(), false);
                             imageCache.put(game.appid, img);
                         }
                         Image img = imageCache.get(game.appid);
                         imageView.setImage(img);
-                        // Schön zuschneiden
-                        applyProportionalSize(imageView, img, 120, 45);
+                        CoverManager.applyProportionalSize(imageView, img, 120, 45); // Nutzt jetzt den Manager!
 
                     } else if (game.appid > 0) {
                         // 2. Steam-Spiel -> Hier ist dein echter Steam-Lade-Code wieder!
@@ -228,16 +211,9 @@ public class ViewController {
 
     @FXML
     private void onSaveProfileClick() {
-
-        // NEU: Stelle sicher, dass der Ordner existiert, bevor wir speichern
-        File dir = new File(SAVE_DIR);
-        if (!dir.exists()) {
-            dir.mkdirs(); // Erstellt den Ordner .steamrandomizer, falls er fehlt
-        }
-
         UserProfile profile = new UserProfile();
 
-        // 1. Alle Custom Games sichern (sowohl aus Bibliothek als auch aus Pool)
+        // Spiele zusammenkratzen (das ist und bleibt Aufgabe des Controllers)
         for (SteamGameRandompicker.Game g : libraryGames) {
             if (g.appid < 0)
                 profile.customGames.add(g);
@@ -245,63 +221,38 @@ public class ViewController {
         for (SteamGameRandompicker.Game g : poolGames) {
             if (g.appid < 0)
                 profile.customGames.add(g);
-
-            // 2. Alle IDs der Pool-Spiele sichern (Steam + Custom)
             profile.poolAppIds.add(g.appid);
         }
 
-        // 3. In Datei schreiben
-        // ALT: try (FileWriter writer = new FileWriter(PROFILE_FILE)) {
-        // NEU:
-        try (FileWriter writer = new FileWriter(getProfileFile(currentProfile))) {
-            Gson gson = new Gson();
-            gson.toJson(profile, writer);
+        // NEU: Manager das Speichern überlassen
+        try {
+            ProfileManager.saveProfile(currentProfile, profile);
             resultLabel.setText("✅ Profil '" + currentProfile + "' gespeichert!");
         } catch (Exception e) {
-            System.err.println("Fehler beim Speichern:");
             e.printStackTrace();
             resultLabel.setText("❌ Fehler beim Speichern!");
         }
     }
 
     private void loadProfile() {
-        // ALT: File file = new File(PROFILE_FILE);
-        // NEU:
-        File file = getProfileFile(currentProfile);
-        if (!file.exists()) {
-            return; // Kein Profil vorhanden, wir starten leer. Alles gut!
-        }
-
-        try (FileReader reader = new FileReader(file)) {
-            Gson gson = new Gson();
-            UserProfile profile = gson.fromJson(reader, UserProfile.class);
+        try {
+            // NEU: Manager das Laden überlassen
+            UserProfile profile = ProfileManager.loadProfile(currentProfile);
 
             if (profile != null) {
-                // 1. Custom Games der Bibliothek hinzufügen
                 if (profile.customGames != null) {
-                    libraryGames.addAll(0, profile.customGames); // Oben anfügen
-
-                    // Den ID-Counter aktualisieren, damit neue Custom Games keine ID-Kollisionen
-                    // verurshen
+                    libraryGames.addAll(0, profile.customGames);
                     for (SteamGameRandompicker.Game cg : profile.customGames) {
-                        if (cg.appid <= customAppIdCounter) {
+                        if (cg.appid <= customAppIdCounter)
                             customAppIdCounter = cg.appid - 1;
-                        }
                     }
                 }
-
-                // 2. Spiele in den Pool verschieben
                 if (profile.poolAppIds != null) {
                     List<SteamGameRandompicker.Game> gamesToMove = new ArrayList<>();
-
-                    // Wir suchen die passenden Spiele in der Bibliothek
                     for (SteamGameRandompicker.Game g : libraryGames) {
-                        if (profile.poolAppIds.contains(g.appid)) {
+                        if (profile.poolAppIds.contains(g.appid))
                             gamesToMove.add(g);
-                        }
                     }
-
-                    // Verschieben
                     poolGames.addAll(gamesToMove);
                     libraryGames.removeAll(gamesToMove);
                 }
@@ -312,59 +263,49 @@ public class ViewController {
         }
     }
 
-    /**
-     * NEU: Diese Klasse definiert, wie unsere JSON-Datei aufgebaut ist.
-     */
-    public static class UserProfile {
-        public List<SteamGameRandompicker.Game> customGames = new ArrayList<>();
-        public List<Integer> poolAppIds = new ArrayList<>();
-    }
-
-    // ==========================================
-    // NEUE PROFIL-VERWALTUNG
-    // ==========================================
-
-    private File getProfileFile(String profileName) {
-        return new File(SAVE_DIR + File.separator + profileName + ".json");
-    }
-
     private void loadAvailableProfiles() {
         isSwitchingProfile = true;
-        List<String> profiles = new ArrayList<>();
-        File dir = new File(SAVE_DIR);
-        File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
-
-        if (files != null) {
-            for (File f : files)
-                profiles.add(f.getName().replace(".json", ""));
-        }
-        if (profiles.isEmpty())
-            profiles.add("Default");
-
+        // NEU: Einfach den Manager fragen!
+        List<String> profiles = ProfileManager.getAvailableProfiles();
         profileComboBox.getItems().setAll(profiles);
         profileComboBox.setValue(currentProfile);
         isSwitchingProfile = false;
     }
 
+    // ==========================================
+    // PROFIL-WECHSEL & NEUES PROFIL
+    // ==========================================
+
     private void switchProfile(String newProfileName) {
-        // Erstmal aufräumen
-        libraryGames.addAll(poolGames);
-        poolGames.clear();
-        libraryGames.removeIf(g -> g.appid < 0);
-        customAppIdCounter = -1;
+        if (newProfileName == null || newProfileName.equals(currentProfile))
+            return;
 
         currentProfile = newProfileName;
-        loadProfile();
         resultLabel.setText("Wechsel zu Profil: " + currentProfile);
+
+        // 1. Erstmal alles aufräumen: Spiele zurück in die Bibliothek schieben
+        libraryGames.addAll(poolGames);
+        poolGames.clear();
+
+        // 2. Custom Games des alten Profils aus der Bibliothek entfernen
+        libraryGames.removeIf(game -> game.appid < 0);
+
+        // 3. Counter für Custom Games zurücksetzen
+        customAppIdCounter = -1;
+
+        // 4. Neues Profil über den Manager laden lassen
+        loadProfile();
     }
 
     @FXML
     private void onAddProfileClick() {
-        String name = newProfileField.getText().trim();
-        if (name.isEmpty() || profileComboBox.getItems().contains(name))
+        String newName = newProfileField.getText().trim();
+        if (newName.isEmpty() || profileComboBox.getItems().contains(newName))
             return;
-        profileComboBox.getItems().add(name);
-        profileComboBox.setValue(name);
+
+        // Das neue Profil der Liste hinzufügen und direkt anwählen
+        profileComboBox.getItems().add(newName);
+        profileComboBox.setValue(newName);
         newProfileField.clear();
     }
 
@@ -375,25 +316,19 @@ public class ViewController {
             return;
         }
 
-        // 1. Warnhinweis erstellen
         Alert alert = new Alert(AlertType.CONFIRMATION);
         alert.setTitle("Profil löschen");
         alert.setHeaderText("Bist du sicher?");
         alert.setContentText("Das Profil '" + currentProfile + "' wird unwiderruflich gelöscht.");
 
-        // 2. Auf Antwort warten
         if (alert.showAndWait().get() == ButtonType.OK) {
-            File file = getProfileFile(currentProfile);
-            if (file.exists()) {
-                file.delete();
-            }
+            // NEU: Den Manager löschen lassen
+            ProfileManager.deleteProfile(currentProfile);
 
             resultLabel.setText("Profil '" + currentProfile + "' wurde gelöscht.");
-
-            // 3. Zurück zum Default-Profil springen
             currentProfile = "Default";
-            loadAvailableProfiles(); // Liste im Dropdown aktualisieren
-            switchProfile("Default"); // Daten neu laden
+            loadAvailableProfiles();
+            switchProfile("Default");
         }
     }
 
@@ -450,17 +385,13 @@ public class ViewController {
         resultLabel.setText(randomGame.name);
 
         // Prüfen, ob für das gezogene Spiel ein lokales Cover existiert
-        File localJpg = new File(SAVE_DIR + "/covers/" + randomGame.appid + ".jpg");
-        File localPng = new File(SAVE_DIR + "/covers/" + randomGame.appid + ".png");
-        File localJpeg = new File(SAVE_DIR + "/covers/" + randomGame.appid + ".jpeg");
-        File activeFile = localJpg.exists() ? localJpg
-                : (localPng.exists() ? localPng : (localJpeg.exists() ? localJpeg : null));
+        File activeFile = CoverManager.getCoverFile(randomGame.appid);
 
         if (activeFile != null) {
             // Lokales Bild laden und zuschneiden
             Image img = new Image(activeFile.toURI().toString());
             resultImageView.setImage(img);
-            applyProportionalSize(resultImageView, img, 184, 69);
+            CoverManager.applyProportionalSize(resultImageView, img, 184, 69);
         } else if (randomGame.appid > 0) {
             // Normales Steam-Bild anzeigen
             Image img = imageCache.get(randomGame.appid);
@@ -475,42 +406,9 @@ public class ViewController {
         gamePoolListView.scrollTo(randomGame);
     }
 
-    // ==========================================
-    // Managemenent der eigenen Spiele-Cover
-    // ==========================================
-
-    // Hilfmethode, um ein Bild proportional zuzuschneiden und anzuzeigen
-    private void applyProportionalSize(ImageView iv, Image img, double targetW, double targetH) {
-        double imgW = img.getWidth();
-        double imgH = img.getHeight();
-
-        double targetAspect = targetW / targetH;
-        double imgAspect = imgW / imgH;
-
-        double subW, subH, subX, subY;
-
-        if (imgAspect > targetAspect) {
-            // Bild ist breiter als das Zielformat -> Links und rechts abschneiden
-            subH = imgH;
-            subW = imgH * targetAspect;
-            subX = (imgW - subW) / 2;
-            subY = 0;
-        } else {
-            // Bild ist schmaler/höher als das Zielformat -> Oben und unten abschneiden
-            subW = imgW;
-            subH = imgW / targetAspect;
-            subX = 0;
-            subY = (imgH - subH) / 2;
-        }
-        iv.setViewport(new Rectangle2D(subX, subY, subW, subH));
-        iv.setFitWidth(targetW);
-        iv.setFitHeight(targetH);
-    }
-
     // Methode zum Auswählen und Speichern eines Covers für ein Custom Game
     @FXML
     private void onEditCoverClick() {
-        // Prüfen, ob ein Spiel in einer der Listen ausgewählt ist
         SteamGameRandompicker.Game selected = gameLibraryListView.getSelectionModel().getSelectedItem();
         if (selected == null)
             selected = gamePoolListView.getSelectionModel().getSelectedItem();
@@ -528,28 +426,12 @@ public class ViewController {
         File selectedFile = fileChooser.showOpenDialog(null);
         if (selectedFile != null) {
             try {
-                // Ordner erstellen falls nicht vorhanden
-                Path coversPath = Paths.get(SAVE_DIR, "covers");
-                if (!Files.exists(coversPath))
-                    Files.createDirectories(coversPath);
+                // NEU: Nur noch ein magischer Aufruf!
+                CoverManager.saveCover(selectedFile, selected.appid);
 
-                // Dateiendung extrahieren
-                String fileName = selectedFile.getName();
-                String extension = fileName.substring(fileName.lastIndexOf("."));
-
-                // Ziel-Pfad: appid.endung (z.B. -1.jpg)
-                Path targetPath = coversPath.resolve(selected.appid + extension);
-
-                // Datei kopieren (bestehende überschreiben)
-                Files.copy(selectedFile.toPath(), targetPath, StandardCopyOption.REPLACE_EXISTING);
-
-                // Cache leeren für dieses Spiel, damit es neu geladen wird
                 imageCache.remove(selected.appid);
-
-                // Listen aktualisieren
                 gameLibraryListView.refresh();
                 gamePoolListView.refresh();
-
                 resultLabel.setText("✅ Cover für " + selected.name + " aktualisiert!");
             } catch (Exception e) {
                 e.printStackTrace();
