@@ -224,10 +224,10 @@ public class ViewController {
         // NEU: Manager das Speichern überlassen
         try {
             ProfileManager.saveProfile(currentProfile, profile);
-            resultLabel.setText("✅ Profil '" + currentProfile + "' gespeichert!");
+            resultLabel.setText("Profil '" + currentProfile + "' gespeichert!");
         } catch (Exception e) {
             e.printStackTrace();
-            resultLabel.setText("❌ Fehler beim Speichern!");
+            resultLabel.setText("Fehler beim Speichern!");
         }
     }
 
@@ -429,10 +429,10 @@ public class ViewController {
                 imageCache.remove(selected.appid);
                 gameLibraryListView.refresh();
                 gamePoolListView.refresh();
-                resultLabel.setText("✅ Cover für " + selected.name + " aktualisiert!");
+                resultLabel.setText("Cover für " + selected.name + " aktualisiert!");
             } catch (Exception e) {
                 e.printStackTrace();
-                resultLabel.setText("❌ Fehler beim Kopieren des Bildes.");
+                resultLabel.setText("Fehler beim Kopieren des Bildes.");
             }
         }
     }

@@ -19,11 +19,11 @@
             <Label text="Profil:" style="-fx-font-weight: bold;"/>
             <ComboBox fx:id="profileComboBox" prefWidth="150"/>
             <TextField fx:id="newProfileField" promptText="Neuer Name..."/>
-            <Button text="➕ Neu" onAction="#onAddProfileClick"/>
-            <Button text="🗑️ Löschen" onAction="#onDeleteProfileClick"/>
+            <Button text="Neu" onAction="#onAddProfileClick"/>
+            <Button text="Löschen" onAction="#onDeleteProfileClick"/>
             
             <Label HBox.hgrow="ALWAYS" maxWidth="Infinity" />
-            <Button text="💾 Speichern" onAction="#onSaveProfileClick" style="-fx-font-weight: bold;"/>
+            <Button text="Speichern" onAction="#onSaveProfileClick" style="-fx-font-weight: bold;"/>
         </HBox>
 
         <HBox spacing="10" VBox.vgrow="ALWAYS">
@@ -46,7 +46,7 @@
                 <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding-top: 5;">
                     <TextField fx:id="customGameField" promptText="Eigenes Spiel eingeben..." HBox.hgrow="ALWAYS"/>
                     <Button text="Hinzufügen" onAction="#onAddCustomGameClick"/>
-                    <Button text="🖼️ Cover ändern" onAction="#onEditCoverClick"/>
+                    <Button text="Cover ändern" onAction="#onEditCoverClick"/>
                 </HBox>
             </VBox>
             
