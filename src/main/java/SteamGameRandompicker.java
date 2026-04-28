@@ -14,11 +14,11 @@ public class SteamGameRandompicker {
     public List<Game> fetchOwnedGames() {
         System.out.println("Starte Abruf der Spieleliste...");
         try {
-            // 1. Den API-Call vorbereiten
+            // Den API-Call vorbereiten
             HttpClient client = HttpClient.newHttpClient();
 
-            /* Die URL, die wir aufrufen. Wir fügen unsere Infos ein
-            und ganz wichtig: "?include_appinfo=true", damit wir die Namen bekommen!
+            /* Die aufgerufene URL. Infos werden eingefügt
+            und ganz wichtig: "?include_appinfo=true", damit die Namen bekannt sind!
             */
             String url = String.format(
                     "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=%s&steamid=%s&format=json&include_appinfo=true",
@@ -30,14 +30,14 @@ public class SteamGameRandompicker {
                     .uri(new URI(url))
                     .build();
 
-            // 2. Anfrage senden und Antwort als Text (String) empfangen
+            // Anfrage senden und Antwort als Text (String) empfangen
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                // 3. Antwort verarbeiten (JSON-Parsing)
+                // Antwort verarbeiten (JSON-Parsing)
                 String jsonBody = response.body();
 
-                // Wir nutzen Gson, um den JSON-Text in unsere Java-Klassen zu füllen
+                // Nutzung von Gson, um den JSON-Text in die Java-Klassen zu füllen
                 Gson gson = new Gson();
                 SteamResponse steamResponse = gson.fromJson(jsonBody, SteamResponse.class);
 
@@ -56,7 +56,7 @@ public class SteamGameRandompicker {
             e.printStackTrace();
         }
 
-        // Im Fehlerfall geben wir eine leere Liste zurück
+        // Im Fehlerfall wird eine leere Liste zurückgegeben
         return Collections.emptyList();
 }
 
@@ -82,8 +82,6 @@ public static class Game {
     int appid;
     String name;
     int playtime_forever; // Spielzeit in Minuten
-    // Es gäbe hier noch mehr Felder (z.B. img_icon_url),
-    // aber wir brauchen sie erstmal nicht.
 
     @Override
     public String toString() {

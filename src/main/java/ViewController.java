@@ -58,10 +58,9 @@ public class ViewController {
     private Random random = new Random();
     private int customAppIdCounter = -1;
 
-    // Die alte Konstante PROFILE_FILE kommt weg.
-    // Dafür merken wir uns den aktuellen Profilnamen.
+    // Aktueller Profilname.
     private String currentProfile = "Default";
-    private boolean isSwitchingProfile = false; // NEU: Flag, um Profilwechsel zu erkennen
+    private boolean isSwitchingProfile = false; // Flag, um Profilwechsel zu erkennen und unerwünschte Nebeneffekte zu vermeiden
 
     @FXML
     public void initialize() {
@@ -89,7 +88,7 @@ public class ViewController {
         // Spiele laden (danach wird automatisch das Profil geladen)
         loadGamesAsync();
 
-        // Listener für die ComboBox (Reagiert, wenn du ein Profil im Dropdown wählst)
+        // Listener für die ComboBox für den Profilwechsel
         profileComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (!isSwitchingProfile && newVal != null) {
                 switchProfile(newVal);
@@ -121,7 +120,6 @@ public class ViewController {
 
             @Override
             protected void updateItem(SteamGameRandompicker.Game game, boolean empty) {
-                // GANZ WICHTIG: Das verhindert die Scroll-Bugs!
                 super.updateItem(game, empty);
 
                 if (empty || game == null) {
@@ -129,7 +127,6 @@ public class ViewController {
                 } else {
                     label.setText(game.name);
 
-                    // NEU
                     File activeFile = CoverManager.getCoverFile(game.appid);
 
                     if (activeFile != null) {
@@ -142,14 +139,14 @@ public class ViewController {
                         CoverManager.applyProportionalSize(imageView, img, 120, 45); // Nutzt jetzt den Manager!
 
                     } else if (game.appid > 0) {
-                        // 2. Steam-Spiel -> Hier ist dein echter Steam-Lade-Code wieder!
+                        // Steam-Spiel mit Standard-Cover
                         if (!imageCache.containsKey(game.appid)) {
                             String imageUrl = "http://media.steampowered.com/steam/apps/" + game.appid
                                     + "/capsule_184x69.jpg";
                             Image img = new Image(imageUrl, true); // true = asynchron im Hintergrund laden
                             imageCache.put(game.appid, img);
                         }
-                        // Bei Steam-Bildern müssen wir nichts zuschneiden, die sind schon perfekt
+                        // Steam-Cover anzeigen, aber auf 120x45 zuschneiden (damit es in die ListView passt)
                         imageView.setViewport(null);
                         imageView.setFitWidth(120);
                         imageView.setFitHeight(45);
@@ -178,8 +175,8 @@ public class ViewController {
             List<SteamGameRandompicker.Game> games = loadGamesTask.getValue();
             libraryGames.setAll(games);
 
-            // ### NEU: Wenn Steam fertig geladen hat, versuchen wir unser Profil zu laden
-            // ###
+            // ### NEU: Wenn Steam fertig geladen hat, wird das Profil geladen (Default oder das zuletzt gewählte) 
+            // ### UND die verfügbaren Profile in die ComboBox geladen.
 
             loadAvailableProfiles(); // Zuerst die verfügbaren Profile in die ComboBox laden
             loadProfile(); // Dann das aktuelle Profil laden (Default oder das zuletzt gewählte)
@@ -210,7 +207,7 @@ public class ViewController {
     private void onSaveProfileClick() {
         UserProfile profile = new UserProfile();
 
-        // Spiele zusammenkratzen (das ist und bleibt Aufgabe des Controllers)
+        // Spiele zusammenkratzen (Aufgabe des Controllers)
         for (SteamGameRandompicker.Game g : libraryGames) {
             if (g.appid < 0)
                 profile.customGames.add(g);
@@ -221,7 +218,7 @@ public class ViewController {
             profile.poolAppIds.add(g.appid);
         }
 
-        // NEU: Manager das Speichern überlassen
+        // Der Manager speichert das Profil (Aufgabe des Managers)
         try {
             ProfileManager.saveProfile(currentProfile, profile);
             resultLabel.setText("Profil '" + currentProfile + "' gespeichert!");
@@ -233,7 +230,7 @@ public class ViewController {
 
     private void loadProfile() {
         try {
-            // NEU: Manager das Laden überlassen
+            // Der Manager lädt das Profil (Aufgabe des Managers)
             UserProfile profile = ProfileManager.loadProfile(currentProfile);
 
             if (profile != null) {
@@ -262,7 +259,7 @@ public class ViewController {
 
     private void loadAvailableProfiles() {
         isSwitchingProfile = true;
-        // NEU: Einfach den Manager fragen!
+        // Der Manager liefert die Liste der verfügbaren Profile (Aufgabe des Managers)
         List<String> profiles = ProfileManager.getAvailableProfiles();
         profileComboBox.getItems().setAll(profiles);
         profileComboBox.setValue(currentProfile);
@@ -280,17 +277,17 @@ public class ViewController {
         currentProfile = newProfileName;
         resultLabel.setText("Wechsel zu Profil: " + currentProfile);
 
-        // 1. Erstmal alles aufräumen: Spiele zurück in die Bibliothek schieben
+        // Erstmal alles aufräumen: Spiele zurück in die Bibliothek schieben
         libraryGames.addAll(poolGames);
         poolGames.clear();
 
-        // 2. Custom Games des alten Profils aus der Bibliothek entfernen
+        // Custom Games des alten Profils aus der Bibliothek entfernen
         libraryGames.removeIf(game -> game.appid < 0);
 
-        // 3. Counter für Custom Games zurücksetzen
+        // Counter für Custom Games zurücksetzen
         customAppIdCounter = -1;
 
-        // 4. Neues Profil über den Manager laden lassen
+        // Neues Profil über den Manager laden lassen
         loadProfile();
     }
 
@@ -319,7 +316,7 @@ public class ViewController {
         alert.setContentText("Das Profil '" + currentProfile + "' wird unwiderruflich gelöscht.");
 
         if (alert.showAndWait().get() == ButtonType.OK) {
-            // NEU: Den Manager löschen lassen
+            // Der Manager löscht das Profil (Aufgabe des Managers)
             ProfileManager.deleteProfile(currentProfile);
 
             resultLabel.setText("Profil '" + currentProfile + "' wurde gelöscht.");
@@ -330,7 +327,7 @@ public class ViewController {
     }
 
     // ==========================================
-    // AB HIER WIEDER DIE ALTEN BUTTON-METHODEN
+    // BUTTON-METHODEN
     // ==========================================
 
     @FXML
@@ -423,7 +420,6 @@ public class ViewController {
         File selectedFile = fileChooser.showOpenDialog(null);
         if (selectedFile != null) {
             try {
-                // NEU: Nur noch ein magischer Aufruf!
                 CoverManager.saveCover(selectedFile, selected.appid);
 
                 imageCache.remove(selected.appid);
