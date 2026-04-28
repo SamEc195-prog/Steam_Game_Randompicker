@@ -1,18 +1,45 @@
-import com.google.gson.Gson; // Importieren wir Gson
+import com.google.gson.Gson;
+import java.io.FileInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Collections;
 import java.util.List;
+import java.util.Properties;
 
 public class SteamGameRandompicker {
 
-    private static final String API_KEY = "9ED1938C227ADAA8BB64B95733B5930B";
-    private static final String STEAM_ID = "76561198122751717";
+    private String API_KEY;
+    private String STEAM_ID;
+
+    public SteamGameRandompicker() {
+        // Beim Erstellen des Objekts werden die Konfigurationsdaten geladen
+        loadConfig();
+    }
+
+    private void loadConfig() {
+        Properties props = new Properties();
+        try (FileInputStream in = new FileInputStream("config.properties")) {
+            props.load(in);
+            this.API_KEY = props.getProperty("STEAM_API_KEY");
+            this.STEAM_ID = props.getProperty("STEAM_ID");
+
+        } catch (Exception e) {
+            System.err.println("Fehler beim Laden der Konfiguration:");
+            e.printStackTrace();
+        }
+    }
 
     public List<Game> fetchOwnedGames() {
         System.out.println("Starte Abruf der Spieleliste...");
+
+        // Kleine Sicherheitsabfrage, um zu prüfen, ob die Konfiguration korrekt geladen wurde
+        if (API_KEY == null || STEAM_ID == null) {
+            System.err.println("API_KEY oder STEAM_ID ist nicht gesetzt. Bitte überprüfe die config.properties.");
+            return Collections.emptyList();
+        }
+
         try {
             // Den API-Call vorbereiten
             HttpClient client = HttpClient.newHttpClient();
@@ -22,8 +49,8 @@ public class SteamGameRandompicker {
             */
             String url = String.format(
                     "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=%s&steamid=%s&format=json&include_appinfo=true",
-                    API_KEY,
-                    STEAM_ID
+                    this.API_KEY,
+                    this.STEAM_ID
             );
 
             HttpRequest request = HttpRequest.newBuilder()
