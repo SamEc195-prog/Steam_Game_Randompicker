@@ -10,7 +10,7 @@ import java.nio.file.StandardCopyOption;
 
 public class CoverManager {
 
-    // 1. Sucht nach einem existierenden Cover für eine bestimmte ID
+    // Sucht nach einem existierenden Cover für eine bestimmte ID
     public static File getCoverFile(int appId) {
         File localJpg = new File(ProfileManager.SAVE_DIR + "/covers/" + appId + ".jpg");
         File localPng = new File(ProfileManager.SAVE_DIR + "/covers/" + appId + ".png");
@@ -23,7 +23,7 @@ public class CoverManager {
         return null; // Kein eigenes Cover gefunden
     }
 
-    // 2. Kopiert das ausgewählte Bild in unseren geheimen Ordner
+    // Kopiert das ausgewählte Bild in den Covers-Ordner
     public static void saveCover(File sourceFile, int appId) throws Exception {
         Path coversPath = Paths.get(ProfileManager.SAVE_DIR, "covers");
         if (!Files.exists(coversPath)) {
@@ -37,7 +37,7 @@ public class CoverManager {
         Files.copy(sourceFile.toPath(), targetPath, StandardCopyOption.REPLACE_EXISTING);
     }
 
-    // 3. Schneidet das Bild proportional zu (die Methode aus deinem Controller)
+    // Schneidet das Bild proportional zu
     public static void applyProportionalSize(ImageView iv, Image img, double targetW, double targetH) {
         double imgW = img.getWidth();
         double imgH = img.getHeight();
