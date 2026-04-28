@@ -7,7 +7,6 @@ import java.util.List;
 
 public class ProfileManager {
 
-    // Die Pfade ziehen wir vom Controller hierher um
     public static final String USER_HOME = System.getProperty("user.home");
     public static final String SAVE_DIR = USER_HOME + File.separator + ".steamrandomizer";
 
