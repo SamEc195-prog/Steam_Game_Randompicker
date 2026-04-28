@@ -1,26 +1,66 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import java.lang.*?>
-<?import java.util.*?>
-<?import javafx.scene.*?>
-<?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.ComboBox?>
 
 <VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="ViewController"
-      alignment="TOP_LEFT" spacing="10" prefWidth="400" prefHeight="500"
+      alignment="TOP_LEFT" spacing="10" prefWidth="750" prefHeight="600"
       style="-fx-padding: 10;">
 
     <children>
-        <Label text="Meine Steam-Spiele:" style="-fx-font-weight: bold;"/>
+        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 0 0 10 0; -fx-border-color: transparent transparent #ccc transparent; -fx-border-width: 0 0 1 0;">
+            <Label text="Profil:" style="-fx-font-weight: bold;"/>
+            <ComboBox fx:id="profileComboBox" prefWidth="150"/>
+            <TextField fx:id="newProfileField" promptText="Neuer Name..."/>
+            <Button text="Neu" onAction="#onAddProfileClick"/>
+            <Button text="Löschen" onAction="#onDeleteProfileClick"/>
+            
+            <Label HBox.hgrow="ALWAYS" maxWidth="Infinity" />
+            <Button text="Speichern" onAction="#onSaveProfileClick" style="-fx-font-weight: bold;"/>
+        </HBox>
 
-        <ListView fx:id="gameListView" VBox.vgrow="ALWAYS"/>
+        <HBox spacing="10" VBox.vgrow="ALWAYS">
+            
+            <VBox HBox.hgrow="ALWAYS">
+                <Label text="Pool (Spiele zur Auswahl):" style="-fx-font-weight: bold;"/>
+                <ListView fx:id="gamePoolListView" VBox.vgrow="ALWAYS"/>
+            </VBox>
 
-        <Button fx:id="randomButton" text="Wähle ein zufälliges Spiel!"
+            <VBox alignment="CENTER" spacing="10" style="-fx-padding-top: 50;">
+                <Button fx:id="excludeButton" text="&gt;" onAction="#onExcludeClick" prefWidth="40"/>
+                <Button fx:id="includeButton" text="&lt;" onAction="#onIncludeClick" prefWidth="40"/>
+            </VBox>
+
+            <VBox HBox.hgrow="ALWAYS" spacing="5">
+                <Label text="Meine Bibliothek (Alle Spiele):" style="-fx-font-weight: bold;"/>
+                <TextField fx:id="searchField" promptText="Spiel suchen..."/>
+                <ListView fx:id="gameLibraryListView" VBox.vgrow="ALWAYS"/>
+                
+                <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding-top: 5;">
+                    <TextField fx:id="customGameField" promptText="Eigenes Spiel eingeben..." HBox.hgrow="ALWAYS"/>
+                    <Button text="Hinzufügen" onAction="#onAddCustomGameClick"/>
+                    <Button text="Cover ändern" onAction="#onEditCoverClick"/>
+                </HBox>
+            </VBox>
+            
+        </HBox>
+
+        <Button fx:id="randomButton" text="Wähle ein zufälliges Spiel aus dem POOL!" 
                 onAction="#onRandomButtonClick" maxWidth="Infinity"/>
-
+        
         <Label text="Zufälliges Spiel:" style="-fx-font-weight: bold; -fx-padding-top: 10;"/>
-        <Label fx:id="resultLabel" text="... klick auf den Button ..."
-               style="-fx-font-size: 14px; -fx-background-color: #f0f0f0; -fx-padding: 5;"/>
+        
+        <HBox alignment="CENTER_LEFT" spacing="15" style="-fx-background-color: #f0f0f0; -fx-padding: 10;">
+            <ImageView fx:id="resultImageView" fitWidth="184" preserveRatio="true"/>
+            <Label fx:id="resultLabel" text="... klick auf den Button ..." 
+                   style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+        </HBox>
     </children>
 </VBox>

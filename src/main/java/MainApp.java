@@ -21,7 +21,6 @@ public class MainApp extends Application {
     }
 
     public static void main(String[] args) {
-        // Dies ist der offizielle Startpunkt für eine JavaFX-Anwendung
         launch(args);
     }
 }
